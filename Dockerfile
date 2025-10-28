@@ -9,7 +9,7 @@ COPY src ./src
 RUN ./mvnw package -DskipTests
 
 # Stage 2: Create the final, smaller runtime image
-FROM eclipse-temurin:17-jre-slim
+FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
