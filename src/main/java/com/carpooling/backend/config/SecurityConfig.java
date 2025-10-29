@@ -3,7 +3,7 @@ package com.carpooling.backend.config;
 import com.carpooling.backend.service.UserDetailsServiceImpl;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod; // <-- IMPORT THIS
+import org.springframework.http.HttpMethod; // Keep this import
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -16,29 +16,39 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration; // <-- IMPORT THIS
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource; // <-- IMPORT THIS
-import org.springframework.web.filter.CorsFilter; // <-- IMPORT THIS
+import org.springframework.web.cors.CorsConfiguration; // Keep this import
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource; // Keep this import
+import org.springframework.web.filter.CorsFilter; // Keep this import
 
-import java.util.Arrays; // <-- IMPORT THIS
+import java.util.Arrays; // Keep this import
 
 @EnableMethodSecurity
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+    // Inject your JwtAuthFilter and CustomAuthEntryPoint
+    private final JwtAuthFilter jwtAuthFilter;
+    private final CustomAuthEntryPoint unauthorizedHandler;
+
+    // Your constructor - make sure it includes these two
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, CustomAuthEntryPoint unauthorizedHandler) {
+        this.jwtAuthFilter = jwtAuthFilter;
+        this.unauthorizedHandler = unauthorizedHandler;
+    }
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    // --- THIS IS THE NEW CORS CONFIGURATION BEAN ---
     @Bean
     public CorsFilter corsFilter() {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.setAllowedOrigins(Arrays.asList("http://localhost:5173")); // Your frontend URL
+        // You might want to allow your deployed frontend URL here too in the future
+        config.setAllowedOrigins(Arrays.asList("http://localhost:5173")); 
         config.setAllowedHeaders(Arrays.asList("Origin", "Content-Type", "Accept", "Authorization"));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         source.registerCorsConfiguration("/**", config); // Apply to all routes
@@ -47,35 +57,35 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                 AuthenticationProvider authenticationProvider,
-                                                 JwtAuthFilter jwtAuthFilter,
-                                                 CustomAuthEntryPoint unauthorizedHandler,
-                                                 CorsFilter corsFilter) throws Exception { // <-- Inject CorsFilter
+                                                   AuthenticationProvider authenticationProvider,
+                                                   // Remove JwtAuthFilter, CustomAuthEntryPoint, CorsFilter from parameters
+                                                   // as they are class fields now
+                                                   CorsFilter corsFilter) throws Exception { 
         http
-            // 1. Add our new corsFilter (this must come BEFORE Spring Security's filter)
-            .addFilterBefore(corsFilter, UsernamePasswordAuthenticationFilter.class)
-            .csrf(csrf -> csrf.disable())
+            // Add the CorsFilter *before* Spring Security's main filters
+            .addFilterBefore(corsFilter, UsernamePasswordAuthenticationFilter.class) 
+            .csrf(csrf -> csrf.disable()) // Disable CSRF
             .exceptionHandling(ex -> ex
-                .authenticationEntryPoint(unauthorizedHandler)
+                .authenticationEntryPoint(unauthorizedHandler) // Your custom handler for 401 errors
             )
             .authorizeHttpRequests(authz -> authz
-                // 2. Explicitly allow preflight OPTIONS requests
+                // Allow CORS preflight OPTIONS requests globally
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 
                 // --- Public Endpoints ---
-                .requestMatchers("/api/auth/register").permitAll()
-                .requestMatchers("/api/auth/login").permitAll()
-                .requestMatchers("/api/rides/search").permitAll()
+                // Corrected paths to include /v1/
+                .requestMatchers("/api/v1/auth/**").permitAll() 
+                .requestMatchers("/api/v1/rides/search").permitAll() 
                 
-                // --- All Other Endpoints ---
+                // --- All Other Endpoints must be authenticated ---
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS) // Use stateless sessions for JWT
             )
             .authenticationProvider(authenticationProvider)
-            // 3. We moved the corsFilter to run earlier
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class); 
+             // Add your JWT filter *before* the standard username/password filter
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
