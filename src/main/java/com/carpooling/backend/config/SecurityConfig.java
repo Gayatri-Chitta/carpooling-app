@@ -58,33 +58,33 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    AuthenticationProvider authenticationProvider,
-                                                   // Remove JwtAuthFilter, CustomAuthEntryPoint, CorsFilter from parameters
-                                                   // as they are class fields now
                                                    CorsFilter corsFilter) throws Exception { 
         http
-            // Add the CorsFilter *before* Spring Security's main filters
+            // Add CORS filter first
             .addFilterBefore(corsFilter, UsernamePasswordAuthenticationFilter.class) 
             .csrf(csrf -> csrf.disable()) // Disable CSRF
             .exceptionHandling(ex -> ex
-                .authenticationEntryPoint(unauthorizedHandler) // Your custom handler for 401 errors
+                .authenticationEntryPoint(unauthorizedHandler) // Custom 401 handler
             )
+            // Configure authorization rules
             .authorizeHttpRequests(authz -> authz
-                // Allow CORS preflight OPTIONS requests globally
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                
                 // --- Public Endpoints ---
-                // Corrected paths to include /v1/
+                // Use requestMatchers for specific paths and permitAll()
                 .requestMatchers("/api/v1/auth/**").permitAll() 
-                .requestMatchers("/api/v1/rides/search").permitAll() 
+                .requestMatchers("/api/v1/rides/search").permitAll()
+                // Allow CORS preflight requests
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() 
                 
                 // --- All Other Endpoints must be authenticated ---
                 .anyRequest().authenticated()
             )
+            // Use stateless session management (essential for JWT)
             .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS) // Use stateless sessions for JWT
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS) 
             )
+            // Set the custom authentication provider
             .authenticationProvider(authenticationProvider)
-             // Add your JWT filter *before* the standard username/password filter
+            // Add our JWT filter *before* the standard authentication filter
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
