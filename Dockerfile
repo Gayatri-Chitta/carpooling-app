@@ -9,7 +9,7 @@ COPY src ./src
 RUN ./mvnw package -DskipTests
 
 # Stage 2: Create the final, smaller runtime image
-FROM amazoncorretto:17-al2-jre
+FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
